@@ -1,8 +1,10 @@
 import math
 from multiprocessing import Pool
 
+from numba import jit
+
 # For mypy typing
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 from typing_extensions import Final
 
 
@@ -12,17 +14,20 @@ class ValidColoring(Exception):
     pass
 
 
+@jit
 def get_child(a: int, b: int, x: int) -> int:
     return a * x ** 2 + b * x
 
 
+@jit
 def get_all_children(i: int, child_deltas: List[int], length: int) -> List[int]:
     return [i + delta for delta in child_deltas if i + delta < length]
 
 
 # Check constraints given that n was just colored
+@jit
 def check_constraints(
-    coloring: List[Optional[int]], x: int, child_lists: List[List[int]]
+    coloring: List[int], x: int, child_lists: List[List[int]]
 ) -> bool:
     # We color from right-to-left, so we check if any ax^2+bx has the same color
     for i in child_lists[x]:
@@ -36,30 +41,27 @@ def check_constraints(
         return True
 
 
+@jit
 def color_brute_force(
-    coloring: List[Optional[int]],
-    i: int,
-    possible_colors: List[int],
-    child_lists: List[List[int]],
+    coloring: List[int], i: int, n_colors: int, child_lists: List[List[int]],
 ):
-    for color in possible_colors:
+    for color in range(n_colors):
         # Try coloring the current node
         coloring[i] = color
         # Check if that color violates any ax^2+bx constraints
         # If not, color the next i
         if check_constraints(coloring, i, child_lists):
-            color_brute_force(coloring, i - 1, possible_colors, child_lists)
+            color_brute_force(coloring, i - 1, n_colors, child_lists)
         # else: if it violates, continue to the next color
     # If all colors are tried and none works, backtrack!
-    coloring[i] = None
+    coloring[i] = -1
     return
 
 
-def check_polyvdw_number(a: int, b: int, n_colors: int, length: int) -> str:
+@jit
+def check_polyvdw_number(a: int, b: int, n_colors: int, length: int):
     # Collection of colored integers
-    integers: List[Optional[int]] = [None] * length
-
-    possible_colors: Final[List[int]] = [i for i in range(1, n_colors + 1)]
+    integers: List[int] = [-1] * length
 
     # Largest x such that 0 + ax^2 + bx is colorable
     max_child_delta: Final[int] = int(
@@ -74,12 +76,11 @@ def check_polyvdw_number(a: int, b: int, n_colors: int, length: int) -> str:
     ]
 
     # WLOG start by coloring the first (last) number
-    integers[length - 1] = 1
+    integers[length - 1] = 0
     # Look for a valid coloring, starting at the next number
-    color_brute_force(integers, length - 2, possible_colors, child_lists)
+    color_brute_force(integers, length - 2, n_colors, child_lists)
     # If this completes without throwing an exception,
     # we have shown that there are no valid colorings of [length]
-    return f"no valid colorings: W({a}x^2+{b}x;3)<={length}"
 
 
 # Listed values from Appedix B, Table 2
@@ -114,7 +115,8 @@ def check_number(args: Tuple[int, int, int]) -> Tuple[str, str]:
     (a, b, number) = args
     print(f"starting {a}, {b}")
     # Verify value in table - no valid colorings for [number]
-    le = check_polyvdw_number(a, b, 3, number)
+    check_polyvdw_number(a, b, 3, number)
+    le = f"no valid colorings: W({a}x^2+{b}x;3)<={number}"
     # Also check that number-1 has a coloring
     try:
         check_polyvdw_number(a, b, 3, number - 1)
@@ -129,10 +131,10 @@ def check_number(args: Tuple[int, int, int]) -> Tuple[str, str]:
 multi = True
 if __name__ == "__main__":
     if multi:
-        with Pool(7) as p:
+        with Pool(8) as p:
             checked = p.map(check_number, table)
     else:
         checked = [check_number(t) for t in table]
-    for (ge, lt) in checked:
-        print(ge)
-        print(lt)
+    for (le, gt) in checked:
+        print(le)
+        print(gt)
