@@ -1,5 +1,6 @@
 import math
 from multiprocessing import Pool
+import os
 
 from numba import jit
 
@@ -117,11 +118,15 @@ def check_number(args: Tuple[int, int, int]) -> Tuple[str, str]:
     # Verify value in table - no valid colorings for [number]
     check_polyvdw_number(a, b, 3, number)
     le = f"no valid colorings: W({a}x^2+{b}x;3)<={number}"
+    with open(os.path.expanduser(f"~/W({a}x^2+{b}x;3)<={number}.txt"), "w") as f:
+        f.write(le)
     # Also check that number-1 has a coloring
     try:
         check_polyvdw_number(a, b, 3, number - 1)
     except ValidColoring:
         gt = f"coloring found: W({a}x^2+{b}x;3)>{number-1}"
+        with open(os.path.expanduser(f"~/W({a}x^2+{b}x;3)>{number-1}.txt"), "w") as f:
+            f.write(gt)
 
     print(f"FINISHED {a}, {b}")
     return (le, gt)
