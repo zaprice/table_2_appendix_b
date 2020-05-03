@@ -2,7 +2,7 @@ import math
 from multiprocessing import Pool
 
 # For mypy typing
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, List, Tuple
 from typing_extensions import Final
 
 
@@ -17,38 +17,38 @@ def get_child(a: int, b: int, x: int) -> int:
 
 
 def get_all_children(i: int, child_deltas: List[int], length: int) -> List[int]:
-    return [i + delta for delta in child_deltas if i + delta <= length]
+    return [i + delta for delta in child_deltas if i + delta < length]
 
 
 # Check constraints given that n was just colored
 def check_constraints(
-    coloring: Dict[int, Optional[int]], x: int, child_dict: Dict[int, List[int]]
+    coloring: List[Optional[int]], x: int, child_lists: List[List[int]]
 ) -> bool:
     # We color from right-to-left, so we check if any ax^2+bx has the same color
-    for i in child_dict[x]:
+    for i in child_lists[x]:
         if coloring[x] == coloring[i]:
             return False
     # Otherwise the coloring so far is fine
-    # If we just colored 1, we're done and have found a valid coloring
-    if x == 1:
+    # If we just colored 0, we're done and have found a valid coloring
+    if x == 0:
         raise ValidColoring("valid coloring found")
     else:
         return True
 
 
 def color_brute_force(
-    coloring: Dict[int, Optional[int]],
+    coloring: List[Optional[int]],
     i: int,
     possible_colors: List[int],
-    child_dict: Dict[int, List[int]],
+    child_lists: List[List[int]],
 ):
     for color in possible_colors:
         # Try coloring the current node
         coloring[i] = color
         # Check if that color violates any ax^2+bx constraints
         # If not, color the next i
-        if check_constraints(coloring, i, child_dict):
-            color_brute_force(coloring, i - 1, possible_colors, child_dict)
+        if check_constraints(coloring, i, child_lists):
+            color_brute_force(coloring, i - 1, possible_colors, child_lists)
         # else: if it violates, continue to the next color
     # If all colors are tried and none works, backtrack!
     coloring[i] = None
@@ -57,28 +57,26 @@ def color_brute_force(
 
 def check_polyvdw_number(a: int, b: int, n_colors: int, length: int) -> str:
     # Collection of colored integers
-    integers: Dict[int, Optional[int]] = dict(
-        zip(range(1, length + 1), [None] * length)
-    )
+    integers: List[Optional[int]] = [None] * length
 
     possible_colors: Final[List[int]] = [i for i in range(1, n_colors + 1)]
 
-    # Largest x such that 1 + ax^2 + bx is colorable
+    # Largest x such that 0 + ax^2 + bx is colorable
     max_child_delta: Final[int] = int(
-        (-b + math.sqrt(b ** 2 + 4 * a * (length - 1))) / (2 * a)
+        (-b + math.sqrt(b ** 2 + 4 * a * length)) / (2 * a)
     )
     # All deltas such that i + delta is (potentially) a child
     child_deltas: Final[List[int]] = [
         get_child(a, b, x) for x in range(1, max_child_delta + 1)
     ]
-    child_dict: Final[Dict[int, List[int]]] = {
-        i: get_all_children(i, child_deltas, length) for i in range(1, length + 1)
-    }
+    child_lists: Final[List[List[int]]] = [
+        get_all_children(i, child_deltas, length) for i in range(length)
+    ]
 
     # WLOG start by coloring the first (last) number
-    integers[length] = 1
+    integers[length - 1] = 1
     # Look for a valid coloring, starting at the next number
-    color_brute_force(integers, length - 1, possible_colors, child_dict)
+    color_brute_force(integers, length - 2, possible_colors, child_lists)
     # If this completes without throwing an exception,
     # we have shown that there are no valid colorings of [length]
     return f"no valid colorings: W({a}x^2+{b}x;3)<={length}"
